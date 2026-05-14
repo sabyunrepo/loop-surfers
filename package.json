@@ -1,8 +1,13 @@
 {
-  "name": "agent-loop-kit",
+  "name": "loop-surfers",
   "version": "0.1.0",
-  "description": "Safe continuation loop kernel for Codex and Claude Code hooks.",
+  "description": "Safe continuation-loop skills and hooks for Codex and Claude Code.",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/sabyunrepo/loop-surfers.git"
+  },
+  "homepage": "https://github.com/sabyunrepo/loop-surfers",
   "bin": {
     "agent-loop": "./bin/agent-loop.js"
   },

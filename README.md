@@ -1,56 +1,114 @@
-# Agent Loop Kit
+# Loop Surfers
 
-Safe continuation loop kernel for Codex and Claude Code hooks.
+Safe continuation-loop skills and hooks for Codex and Claude Code.
 
-Agent Loop Kit is not a workflow-pack framework. It does not ship built-in
-domain workflows such as "GitHub issues", "QA", or "repo maintenance" as core
-state machines. Instead, it provides a small continuation kernel:
+Loop Surfers helps coding agents keep working on a user-approved objective
+without turning into an uncontrolled infinite loop. It stores the original
+objective, applies a safety budget, records progress evidence, defers blocked
+work, and lets Stop hooks continue only when it is still safe and useful.
 
-- `/loop-start` stores the original objective and safety budget.
-- Stop hooks decide whether the agent may continue.
-- Retryable blockers move into a deferred queue with `retry_at` metadata.
-- Manual blockers stay visible without being bypassed.
-- The agent records progress evidence so the loop can stop when it is not
-  making progress.
+Languages: [한국어](#한국어) | [English](#english) | [中文](#中文) | [日本語](#日本語)
 
-## Install From Git
+## 한국어
+
+### 목적
+
+Loop Surfers는 Codex와 Claude Code에서 `/loop-start`로 시작한 작업 목표를
+안전하게 이어가기 위한 hook/skill 키트입니다. 에이전트가 작업 중간에 Stop
+hook에 걸렸을 때, 무조건 되살리는 것이 아니라 다음 조건을 확인한 뒤에만
+계속 진행하도록 돕습니다.
+
+- 사용자가 명시적으로 중단한 경우에는 절대 재개하지 않습니다.
+- 인증, 결제, 권한, sandbox, repository policy 같은 blocker는 우회하지 않습니다.
+- rate limit처럼 나중에 다시 시도할 수 있는 blocker는 deferred queue에 남깁니다.
+- 진행 증거가 없거나 safety budget을 초과하면 루프를 종료합니다.
+- GitHub issue, QA, research 같은 도메인 workflow는 core에 고정하지 않고 사용자의 prompt와 repo policy에 맡깁니다.
+
+즉, 이 프로젝트의 목적은 "AI 에이전트를 무한히 돌리는 것"이 아니라,
+**사용자가 승인한 목표를 안전 예산 안에서 계속 진행하고, 막힌 일은 기록하며,
+멈춰야 할 때는 멈추는 공통 루프 레이어**를 제공하는 것입니다.
+
+### 설치 요구사항
+
+- Git
+- Node.js 20 이상
+- Codex 또는 Claude Code
+- hook 설정을 병합할 수 있는 프로젝트 권한
+
+### Git으로 설치
 
 ```bash
-git clone --depth 1 <git-url> ~/.agent-loop-kit
-~/.agent-loop-kit/setup --host all --target /path/to/project
+git clone --depth 1 git@github.com:sabyunrepo/loop-surfers.git ~/.loop-surfers
+~/.loop-surfers/setup --host all --target /path/to/project
 ```
 
-This installs runnable templates into the target project and renders each hook
-or skill command with an absolute `node .../bin/agent-loop.js` path. Users do
-not need `npm link`, and hook shells do not need the user's interactive `PATH`.
-
-Alternative global install from a Git URL:
+Codex만 설치:
 
 ```bash
-npm install -g git+<git-url>
+~/.loop-surfers/setup --host codex --target /path/to/project
+```
+
+Claude Code만 설치:
+
+```bash
+~/.loop-surfers/setup --host claude --target /path/to/project
+```
+
+설치 후 생성되는 파일:
+
+```text
+.agents/skills/loop-start/SKILL.md      # Codex skill
+.agents/skills/loop-stop/SKILL.md       # Codex skill
+.agents/skills/loop-status/SKILL.md     # Codex skill
+.codex/hooks/*.sh                       # Codex hook wrappers
+.codex/hooks.agent-loop.example.json    # Codex hook config example
+
+.claude/skills/loop-start/SKILL.md      # Claude Code skill
+.claude/skills/loop-stop/SKILL.md       # Claude Code skill
+.claude/skills/loop-status/SKILL.md     # Claude Code skill
+.claude/hooks/*.sh                      # Claude Code hook wrappers
+.claude/settings.agent-loop.example.json # Claude Code hook config example
+```
+
+생성된 `*.example` 파일은 바로 활성 설정이 아닙니다. 각 host의 실제 설정 파일에
+hook 설정을 병합해야 합니다.
+
+- Codex: `.codex/hooks.agent-loop.example.json` 내용을 `.codex/hooks.json`에 병합
+- Claude Code: `.claude/settings.agent-loop.example.json` 내용을 `.claude/settings.json`에 병합
+
+`setup`은 hook과 skill 파일 안에 `node /absolute/path/bin/agent-loop.js` 형태의
+절대 경로를 렌더링합니다. 그래서 hook 실행 시 사용자의 interactive shell `PATH`에
+`agent-loop`가 없어도 동작합니다.
+
+### npm global 방식
+
+```bash
+npm install -g git+ssh://git@github.com/sabyunrepo/loop-surfers.git
 agent-loop install --host all --target /path/to/project
 ```
 
-Review the generated `*.example` files and merge the hook configuration into
-your Codex or Claude Code settings.
+### 사용 방법
 
-Use `--host codex` or `--host claude` to install only one host's templates. Use
-`--force` when intentionally refreshing generated files.
+루프 시작:
 
-## Quick Start
+```bash
+/loop-start Fix failing tests, run review, and continue with the next safe task until the budget is exhausted.
+```
+
+또는 shell에서 직접 시작:
 
 ```bash
 agent-loop start --max-continuations 20 --max-wall-minutes 240 \
-  "Work through available project tasks. Defer blocked work and continue safe available work."
+  "Fix failing tests, run review, and continue with the next safe task until the budget is exhausted."
 ```
 
-During work, the agent should record evidence:
+진행 증거 기록:
 
 ```bash
 agent-loop progress "Fixed parser tests and added regression coverage"
 ```
 
-When a task is blocked but later retryable:
+나중에 재시도 가능한 blocker 기록:
 
 ```bash
 agent-loop defer \
@@ -63,62 +121,436 @@ agent-loop defer \
   --evidence "HTTP 429 retry-after: 120"
 ```
 
-When the loop should stop:
+상태 확인:
 
 ```bash
+/loop-status
+agent-loop status
+```
+
+사용자가 루프 중단:
+
+```bash
+/loop-stop
 agent-loop stop --reason "manual stop"
 ```
 
-When the objective is finished or only manual blockers remain:
+목표 완료:
 
 ```bash
 agent-loop complete --reason "all safe work completed; remaining blockers require maintainer action"
 ```
 
-## Core Safety Model
+### 예시 prompt
 
-Agent Loop Kit treats blockers by scope:
+```text
+/loop-start 현재 프로젝트에서 실패하는 테스트를 고치고, 가능한 범위의 코드 리뷰를 수행해.
+인증/권한/rate limit/sandbox 문제로 막힌 작업은 deferred queue에 남기고,
+다른 안전한 작업이 있으면 계속 진행해. 의미 있는 변경 후에는 progress를 기록해.
+20회 continuation 또는 4시간을 넘기지 마.
+```
 
-- `global`: the host or environment cannot continue safely.
-- `capability`: one capability is unavailable, such as GitHub write access.
-- `task`: only the current task is blocked.
-- `policy`: repository or user policy requires a human gate.
-- `user-stop`: a human explicitly stopped the loop.
+### 안전 모델
 
-Only user stops and exhausted safety budgets terminate immediately. Retryable
-blockers are stored with retry metadata. Manual blockers are never bypassed.
+Loop Surfers는 blocker를 다음 범위로 분류합니다.
 
-## Host Support
+- `global`: host 또는 환경 전체가 안전하게 계속될 수 없음
+- `capability`: GitHub write access처럼 특정 기능만 사용 불가
+- `task`: 현재 task만 막힘
+- `policy`: repo 또는 사용자 policy상 human gate 필요
+- `user-stop`: 사용자가 명시적으로 중단
 
-Claude Code and Codex both support `decision: "block"` with a continuation
-reason for `Stop` hooks. Agent Loop Kit uses that shared shape.
+사용자 중단과 safety budget 초과는 즉시 종료합니다. Retry 가능한 blocker는
+재시도 시간과 함께 보류하고, manual blocker는 절대 자동 우회하지 않습니다.
 
-The generated templates include:
+### 현재 배포 상태
 
-- Agent skills for `/loop-start`, `/loop-stop`, and `/loop-status`.
-- Hook wrappers for `Stop`, `StopFailure`, and `UserPromptSubmit`.
-- Example host configuration snippets.
+이 저장소는 Git clone + `setup` 방식으로 설치 가능합니다. 아직 Codex 또는
+Claude Code의 native plugin marketplace package는 아닙니다. Marketplace 배포를
+하려면 `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json`, marketplace
+manifest, host별 validation이 추가로 필요합니다.
 
-Codex templates install skills under `.agents/skills/` and hooks under
-`.codex/hooks/`. Claude Code templates install skills and hooks under
-`.claude/`.
+## English
 
-## Marketplace Status
+### Purpose
 
-This repository is Git-installable as a CLI/template installer. It is not yet a
-native Codex or Claude Code plugin marketplace package. Marketplace packaging
-needs host-specific manifests (`.codex-plugin/plugin.json` and
-`.claude-plugin/plugin.json`) plus validation against each host's plugin loader.
-Keep using `setup` or `agent-loop install` until that packaging is added and
-tested.
+Loop Surfers is a hook and skill kit for safely continuing Codex and Claude Code
+work after `/loop-start`. It is designed for long-running agent sessions where
+the user has approved an objective, but the agent must still respect clear stop
+conditions.
 
-## Project Layout
+It does not blindly revive interrupted work. Instead, it keeps a loop state,
+safety budget, progress evidence, and deferred blocker queue. Stop hooks only
+ask the agent to continue when the loop is active, the budget is still valid,
+and there is no user stop or manual blocker that must be respected.
+
+Use Loop Surfers when you want an agent to keep working through available safe
+tasks, record what it did, defer blocked work, and stop cleanly when useful work
+is finished or unsafe.
+
+### Requirements
+
+- Git
+- Node.js 20 or newer
+- Codex or Claude Code
+- Permission to merge hook configuration into the target project
+
+### Install From Git
+
+```bash
+git clone --depth 1 git@github.com:sabyunrepo/loop-surfers.git ~/.loop-surfers
+~/.loop-surfers/setup --host all --target /path/to/project
+```
+
+Install only Codex templates:
+
+```bash
+~/.loop-surfers/setup --host codex --target /path/to/project
+```
+
+Install only Claude Code templates:
+
+```bash
+~/.loop-surfers/setup --host claude --target /path/to/project
+```
+
+After installation, review and merge the generated example config:
+
+- Codex: merge `.codex/hooks.agent-loop.example.json` into `.codex/hooks.json`
+- Claude Code: merge `.claude/settings.agent-loop.example.json` into `.claude/settings.json`
+
+The installer renders each hook and skill with an absolute
+`node /absolute/path/bin/agent-loop.js` command, so hooks do not depend on the
+interactive shell `PATH`.
+
+### npm Global Install
+
+```bash
+npm install -g git+ssh://git@github.com/sabyunrepo/loop-surfers.git
+agent-loop install --host all --target /path/to/project
+```
+
+### Usage
+
+Start a loop:
+
+```bash
+/loop-start Fix failing tests, run review, and continue with the next safe task until the budget is exhausted.
+```
+
+Start from shell:
+
+```bash
+agent-loop start --max-continuations 20 --max-wall-minutes 240 \
+  "Fix failing tests, run review, and continue with the next safe task until the budget is exhausted."
+```
+
+Record progress:
+
+```bash
+agent-loop progress "Fixed parser tests and added regression coverage"
+```
+
+Defer retryable blocked work:
+
+```bash
+agent-loop defer \
+  --task "Retry GitHub issue sync" \
+  --type rate_limit \
+  --provider github \
+  --scope capability \
+  --capability github.api \
+  --retry-after-seconds 120 \
+  --evidence "HTTP 429 retry-after: 120"
+```
+
+Check status:
+
+```bash
+/loop-status
+agent-loop status
+```
+
+Stop the loop:
+
+```bash
+/loop-stop
+agent-loop stop --reason "manual stop"
+```
+
+Mark the objective complete:
+
+```bash
+agent-loop complete --reason "all safe work completed; remaining blockers require maintainer action"
+```
+
+### Example Prompt
+
+```text
+/loop-start Work through the current project objective. Fix failing tests,
+perform a focused code review, and continue with the next safe task. If auth,
+permission, rate limit, billing, sandbox, or repo policy blocks a task, defer it
+with evidence and continue other safe work. Record progress after meaningful
+changes. Stop after 20 continuations or 4 hours.
+```
+
+### Safety Model
+
+Blocker scopes:
+
+- `global`: the host or environment cannot safely continue
+- `capability`: one capability is unavailable, such as GitHub write access
+- `task`: only the current task is blocked
+- `policy`: repository or user policy requires a human gate
+- `user-stop`: the user explicitly stopped the loop
+
+User stops and exhausted safety budgets terminate immediately. Retryable
+blockers remain in the deferred queue with retry metadata. Manual blockers are
+never bypassed.
+
+### Marketplace Status
+
+This repository is installable through Git clone plus `setup`, or through a Git
+URL npm global install. It is not yet a native Codex or Claude Code marketplace
+plugin. Marketplace distribution requires `.codex-plugin/plugin.json`,
+`.claude-plugin/plugin.json`, marketplace manifests, and host-specific
+validation.
+
+## 中文
+
+### 目的
+
+Loop Surfers 是面向 Codex 和 Claude Code 的安全连续执行工具包。它让用户通过
+`/loop-start` 明确授权一个目标，然后让代理在安全预算内继续推进工作。
+
+它不是无限循环工具。Loop Surfers 会保存原始目标、继续次数、时间预算、进度证据
+和阻塞任务队列。只有在没有用户主动停止、没有必须人工处理的阻塞、并且预算仍然
+有效时，Stop hook 才会要求代理继续工作。
+
+适用场景：
+
+- 连续修复测试失败
+- 按安全边界继续处理多个任务
+- 遇到 rate limit 后记录并稍后重试
+- 遇到认证、权限、计费、sandbox 或仓库策略问题时停止绕过行为
+- 为长时间代理工作保留可审计的状态和进度证据
+
+### 安装要求
+
+- Git
+- Node.js 20 或更高版本
+- Codex 或 Claude Code
+- 能够修改目标项目 hook 配置的权限
+
+### 通过 Git 安装
+
+```bash
+git clone --depth 1 git@github.com:sabyunrepo/loop-surfers.git ~/.loop-surfers
+~/.loop-surfers/setup --host all --target /path/to/project
+```
+
+只安装 Codex 模板：
+
+```bash
+~/.loop-surfers/setup --host codex --target /path/to/project
+```
+
+只安装 Claude Code 模板：
+
+```bash
+~/.loop-surfers/setup --host claude --target /path/to/project
+```
+
+安装后需要合并示例配置：
+
+- Codex: 将 `.codex/hooks.agent-loop.example.json` 合并到 `.codex/hooks.json`
+- Claude Code: 将 `.claude/settings.agent-loop.example.json` 合并到 `.claude/settings.json`
+
+安装器会把 hook 和 skill 中的命令渲染成绝对路径，例如
+`node /absolute/path/bin/agent-loop.js`，因此 hook 不依赖用户 shell 的 `PATH`。
+
+### 使用方法
+
+启动循环：
+
+```bash
+/loop-start Fix failing tests and continue the next safe task within the budget.
+```
+
+记录进度：
+
+```bash
+agent-loop progress "Fixed parser tests and added regression coverage"
+```
+
+记录可重试阻塞：
+
+```bash
+agent-loop defer \
+  --task "Retry GitHub issue sync" \
+  --type rate_limit \
+  --provider github \
+  --retry-after-seconds 120 \
+  --evidence "HTTP 429 retry-after: 120"
+```
+
+查看状态：
+
+```bash
+/loop-status
+agent-loop status
+```
+
+停止循环：
+
+```bash
+/loop-stop
+agent-loop stop --reason "manual stop"
+```
+
+完成目标：
+
+```bash
+agent-loop complete --reason "all safe work completed; remaining blockers require maintainer action"
+```
+
+### 安全模型
+
+- `global`: 整个环境不能安全继续
+- `capability`: 某个能力不可用，例如 GitHub 写权限
+- `task`: 只有当前任务被阻塞
+- `policy`: 仓库或用户策略需要人工确认
+- `user-stop`: 用户明确停止
+
+用户停止和预算耗尽会立即终止。可重试阻塞会保留在 deferred queue 中。需要人工处理
+的阻塞不会被自动绕过。
+
+## 日本語
+
+### 目的
+
+Loop Surfers は Codex と Claude Code のための安全な継続実行 hook/skill キット
+です。ユーザーが `/loop-start` で承認した目標を、予算と安全条件の範囲内で
+継続できるようにします。
+
+これは無制限にエージェントを動かすための仕組みではありません。元の目標、継続
+回数、時間制限、進捗証拠、保留中の blocker を状態として保存し、Stop hook は
+安全に続けられる場合だけ継続指示を返します。
+
+主な用途：
+
+- 失敗しているテストを継続的に修正する
+- 安全な次のタスクへ進む
+- rate limit のような再試行可能な blocker を保留する
+- 認証、権限、課金、sandbox、repository policy の問題を自動で回避しない
+- 長時間のエージェント作業を監査可能な状態として残す
+
+### 必要条件
+
+- Git
+- Node.js 20 以上
+- Codex または Claude Code
+- 対象プロジェクトの hook 設定を編集できる権限
+
+### Git からインストール
+
+```bash
+git clone --depth 1 git@github.com:sabyunrepo/loop-surfers.git ~/.loop-surfers
+~/.loop-surfers/setup --host all --target /path/to/project
+```
+
+Codex のみ：
+
+```bash
+~/.loop-surfers/setup --host codex --target /path/to/project
+```
+
+Claude Code のみ：
+
+```bash
+~/.loop-surfers/setup --host claude --target /path/to/project
+```
+
+インストール後、生成された設定例を実際の設定にマージしてください。
+
+- Codex: `.codex/hooks.agent-loop.example.json` を `.codex/hooks.json` にマージ
+- Claude Code: `.claude/settings.agent-loop.example.json` を `.claude/settings.json` にマージ
+
+インストーラーは hook と skill のコマンドを
+`node /absolute/path/bin/agent-loop.js` のような絶対パスに変換します。そのため
+hook 実行時に `agent-loop` が shell の `PATH` に存在する必要はありません。
+
+### 使い方
+
+ループ開始：
+
+```bash
+/loop-start Fix failing tests and continue the next safe task within the budget.
+```
+
+進捗記録：
+
+```bash
+agent-loop progress "Fixed parser tests and added regression coverage"
+```
+
+再試行可能な blocker を保留：
+
+```bash
+agent-loop defer \
+  --task "Retry GitHub issue sync" \
+  --type rate_limit \
+  --provider github \
+  --retry-after-seconds 120 \
+  --evidence "HTTP 429 retry-after: 120"
+```
+
+状態確認：
+
+```bash
+/loop-status
+agent-loop status
+```
+
+停止：
+
+```bash
+/loop-stop
+agent-loop stop --reason "manual stop"
+```
+
+完了：
+
+```bash
+agent-loop complete --reason "all safe work completed; remaining blockers require maintainer action"
+```
+
+### 安全モデル
+
+- `global`: host または環境全体が安全に継続できない
+- `capability`: GitHub write access など特定の能力が使えない
+- `task`: 現在の task のみが block されている
+- `policy`: repository またはユーザー policy により人間の確認が必要
+- `user-stop`: ユーザーが明示的に停止した
+
+ユーザー停止と予算超過は即時終了します。再試行可能な blocker は deferred queue
+に残されます。人間の対応が必要な blocker は自動的に回避しません。
+
+## Development
+
+```bash
+npm run check
+npm test
+npm pack --dry-run
+```
+
+Project layout:
 
 ```text
 bin/                 CLI entry point
 src/kernel/          State, blocker, scheduler, and prompt logic
 src/templates/       Claude Code and Codex install templates
-docs/specs/          Design specs
+docs/specs/          Design specs and distribution notes
 examples/recipes/    Optional examples, not core workflows
 test/                Node test runner coverage
 ```
@@ -127,4 +559,4 @@ test/                Node test runner coverage
 
 The core loop should know how to continue safely. It should not know what kind
 of work the user prefers. Domain-specific behavior belongs in user prompts,
-repo policy, adapters, or optional examples.
+repository policy, adapters, or optional examples.
