@@ -73,6 +73,10 @@ test('CLI install renders host templates with concrete command', async () => {
     path.join(cwd, '.agents', 'skills', 'loop-start', 'SKILL.md'),
     'utf8'
   );
+  const codexPrompt = await readFile(
+    path.join(cwd, '.codex', 'prompts', 'loop-start.md'),
+    'utf8'
+  );
   const claudeHook = await readFile(
     path.join(cwd, '.claude', 'hooks', 'agent-loop-stop.sh'),
     'utf8'
@@ -80,6 +84,7 @@ test('CLI install renders host templates with concrete command', async () => {
   const codexHookMode = await stat(path.join(cwd, '.codex', 'hooks', 'agent-loop-stop.sh'));
 
   assert.match(codexSkill, /node '\/opt\/agent-loop-kit\/bin\/agent-loop.js' start/);
+  assert.match(codexPrompt, /node '\/opt\/agent-loop-kit\/bin\/agent-loop.js' start/);
   assert.match(claudeHook, /node '\/opt\/agent-loop-kit\/bin\/agent-loop.js' hook stop --host claude/);
   assert.equal(codexHookMode.mode & 0o111, 0o111);
 });

@@ -16,11 +16,11 @@ Date: 2026-05-14
 
 ## Result
 
-Agent Loop Kit is distributable by Git as a CLI/template installer:
+Loop Surfers is distributable by Git as a CLI/template installer:
 
 ```bash
-git clone --depth 1 <git-url> ~/.agent-loop-kit
-~/.agent-loop-kit/setup --host all --target /path/to/project
+git clone --depth 1 git@github.com:sabyunrepo/loop-surfers.git ~/.loop-surfers
+~/.loop-surfers/setup --host all --target /path/to/project
 ```
 
 The setup flow renders host templates with an absolute `node <repo>/bin/agent-loop.js`
@@ -30,6 +30,7 @@ command. This avoids relying on an interactive shell `PATH` inside hook commands
 
 - Codex hooks: `.codex/hooks.agent-loop.example.json` plus hook scripts in `.codex/hooks/`.
 - Codex skills: `.agents/skills/loop-start`, `loop-stop`, and `loop-status`.
+- Codex compatibility prompts: `.codex/prompts/loop-start.md`, `loop-status.md`, and `loop-stop.md`.
 - Claude Code hooks: `.claude/settings.agent-loop.example.json` plus hook scripts in `.claude/hooks/`.
 - Claude Code skills: `.claude/skills/loop-start`, `loop-stop`, and `loop-status`.
 
