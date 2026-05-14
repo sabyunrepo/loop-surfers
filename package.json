@@ -1,0 +1,33 @@
+{
+  "name": "agent-loop-kit",
+  "version": "0.1.0",
+  "description": "Safe continuation loop kernel for Codex and Claude Code hooks.",
+  "type": "module",
+  "bin": {
+    "agent-loop": "./bin/agent-loop.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check bin/agent-loop.js && node --check src/cli.js && node --check src/kernel/state.js && node --check src/kernel/blockers.js && node --check src/kernel/scheduler.js && node --check src/kernel/prompts.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "docs/",
+    "examples/",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "codex",
+    "claude-code",
+    "hooks",
+    "agent",
+    "automation",
+    "loop"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,15 @@
+# Optional example only. Not a core workflow pack.
+name: github-issues
+objective: >
+  Work through repository issues in priority order. For each issue, determine
+  whether it is safe to work locally. If blocked by missing GitHub permission,
+  policy, rate limit, or required maintainer input, defer it with evidence and
+  continue another safe issue.
+budgets:
+  max_continuations: 20
+  max_wall_minutes: 240
+  max_no_progress_repeats: 2
+policy_notes:
+  - Do not merge pull requests unless repo policy explicitly allows it.
+  - Do not bypass branch protection or reviewer requirements.
+  - Record rate limits with retry_at metadata.

@@ -1,0 +1,14 @@
+# Optional example only. Not a core workflow pack.
+name: qa-ship
+objective: >
+  Verify the current change with focused tests and review. Fix high-confidence
+  regressions. Defer work that requires unavailable credentials, external
+  services, or human release approval.
+budgets:
+  max_continuations: 12
+  max_wall_minutes: 180
+  max_no_progress_repeats: 2
+policy_notes:
+  - Do not deploy without explicit user approval.
+  - Do not skip failing tests to make progress.
+  - Record unresolved failures with reproduction evidence.

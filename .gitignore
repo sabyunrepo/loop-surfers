@@ -1,0 +1,5 @@
+node_modules/
+.agent-loop/
+coverage/
+.DS_Store
+npm-debug.log*

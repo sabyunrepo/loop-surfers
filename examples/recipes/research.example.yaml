@@ -1,0 +1,14 @@
+# Optional example only. Not a core workflow pack.
+name: research
+objective: >
+  Research the requested topic using primary sources where possible. Track open
+  questions as deferred tasks when sources are unavailable or blocked. Stop when
+  the answer is grounded, cited, and no safe follow-up work remains.
+budgets:
+  max_continuations: 8
+  max_wall_minutes: 90
+  max_no_progress_repeats: 1
+policy_notes:
+  - Prefer primary sources.
+  - Do not retry blocked sources aggressively.
+  - Summarize inaccessible sources separately.
