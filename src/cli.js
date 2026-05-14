@@ -1,4 +1,4 @@
-import { cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -189,31 +189,86 @@ async function installCommand(args, io) {
   }
 
   const target = path.resolve(options.target ?? io.cwd);
+  const agentLoopCommand = options.agentLoopCommand ?? options.command ?? defaultAgentLoopCommand();
   const hosts = host === 'all' ? ['claude', 'codex'] : [host];
   for (const item of hosts) {
-    await copyTemplate(item, target);
+    await copyTemplate(item, target, {
+      AGENT_LOOP_COMMAND: agentLoopCommand
+    }, {
+      force: Boolean(options.force)
+    });
   }
 
   io.stdout.write([
     `Installed Agent Loop Kit templates for ${hosts.join(', ')}.`,
     `target: ${target}`,
+    `command: ${agentLoopCommand}`,
     'Review the generated *.example files and merge the hook config into your agent settings.',
     ''
   ].join('\n'));
 }
 
-async function copyTemplate(host, target) {
+async function copyTemplate(host, target, replacements, options = {}) {
   const src = path.join(__dirname, 'templates', host);
   const exists = await stat(src).then(() => true, () => false);
   if (!exists) {
     throw new Error(`missing template directory for host: ${host}`);
   }
   await mkdir(target, { recursive: true });
-  await cp(src, target, {
-    recursive: true,
-    errorOnExist: false,
-    force: false
-  });
+  await copyDirectory(src, target, replacements, options);
+}
+
+async function copyDirectory(src, dest, replacements, options) {
+  await mkdir(dest, { recursive: true });
+  const entries = await readdir(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      await copyDirectory(srcPath, destPath, replacements, options);
+      continue;
+    }
+    if (!entry.isFile()) {
+      continue;
+    }
+    await copyTextFile(srcPath, destPath, replacements, options);
+  }
+}
+
+async function copyTextFile(srcPath, destPath, replacements, options) {
+  const [raw, metadata] = await Promise.all([
+    readFile(srcPath, 'utf8'),
+    stat(srcPath)
+  ]);
+  const rendered = renderTemplate(raw, replacements);
+  await mkdir(path.dirname(destPath), { recursive: true });
+  try {
+    await writeFile(destPath, rendered, {
+      mode: metadata.mode,
+      flag: options.force ? 'w' : 'wx'
+    });
+  } catch (error) {
+    if (error?.code === 'EEXIST' && !options.force) {
+      return;
+    }
+    throw error;
+  }
+  await chmod(destPath, metadata.mode);
+}
+
+function renderTemplate(value, replacements) {
+  return Object.entries(replacements).reduce((current, [key, replacement]) => {
+    return current.replaceAll(`{{${key}}}`, replacement);
+  }, value);
+}
+
+function defaultAgentLoopCommand() {
+  const binPath = path.resolve(__dirname, '..', 'bin', 'agent-loop.js');
+  return `node ${shellQuote(binPath)}`;
+}
+
+function shellQuote(value) {
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 async function requireState(statePath) {
@@ -294,7 +349,7 @@ Usage:
   agent-loop hook stop
   agent-loop hook stop-failure
   agent-loop hook user-prompt-submit
-  agent-loop install --host claude|codex|all [--target .]
+  agent-loop install --host claude|codex|all [--target .] [--force]
 
 Common options:
   --state <path>                    Override .agent-loop/state.json

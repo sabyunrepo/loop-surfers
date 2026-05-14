@@ -13,23 +13,29 @@ state machines. Instead, it provides a small continuation kernel:
 - The agent records progress evidence so the loop can stop when it is not
   making progress.
 
-## Install From Source
+## Install From Git
 
 ```bash
-git clone <your-fork-url> agent-loop-kit
-cd agent-loop-kit
-npm test
-npm link
+git clone --depth 1 <git-url> ~/.agent-loop-kit
+~/.agent-loop-kit/setup --host all --target /path/to/project
 ```
 
-Then install host templates into a target project:
+This installs runnable templates into the target project and renders each hook
+or skill command with an absolute `node .../bin/agent-loop.js` path. Users do
+not need `npm link`, and hook shells do not need the user's interactive `PATH`.
+
+Alternative global install from a Git URL:
 
 ```bash
+npm install -g git+<git-url>
 agent-loop install --host all --target /path/to/project
 ```
 
 Review the generated `*.example` files and merge the hook configuration into
 your Codex or Claude Code settings.
+
+Use `--host codex` or `--host claude` to install only one host's templates. Use
+`--force` when intentionally refreshing generated files.
 
 ## Quick Start
 
@@ -89,9 +95,22 @@ reason for `Stop` hooks. Agent Loop Kit uses that shared shape.
 
 The generated templates include:
 
-- Slash command prompts for `/loop-start`, `/loop-stop`, and `/loop-status`.
+- Agent skills for `/loop-start`, `/loop-stop`, and `/loop-status`.
 - Hook wrappers for `Stop`, `StopFailure`, and `UserPromptSubmit`.
 - Example host configuration snippets.
+
+Codex templates install skills under `.agents/skills/` and hooks under
+`.codex/hooks/`. Claude Code templates install skills and hooks under
+`.claude/`.
+
+## Marketplace Status
+
+This repository is Git-installable as a CLI/template installer. It is not yet a
+native Codex or Claude Code plugin marketplace package. Marketplace packaging
+needs host-specific manifests (`.codex-plugin/plugin.json` and
+`.claude-plugin/plugin.json`) plus validation against each host's plugin loader.
+Keep using `setup` or `agent-loop install` until that packaging is added and
+tested.
 
 ## Project Layout
 

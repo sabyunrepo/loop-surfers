@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 set -euo pipefail
-agent-loop hook user-prompt-submit --host codex
+{{AGENT_LOOP_COMMAND}} hook user-prompt-submit --host codex

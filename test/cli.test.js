@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -50,6 +50,38 @@ test('CLI stop hook emits continuation JSON', async () => {
   const output = JSON.parse(stdout.text);
   assert.equal(output.decision, 'block');
   assert.match(output.reason, /continue safely/);
+});
+
+test('CLI install renders host templates with concrete command', async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), 'agent-loop-kit-'));
+  await runCli([
+    'install',
+    '--host',
+    'all',
+    '--target',
+    cwd,
+    '--agent-loop-command',
+    "node '/opt/agent-loop-kit/bin/agent-loop.js'"
+  ], {
+    cwd,
+    stdin: Readable.from([]),
+    stdout: capture(),
+    stderr: capture()
+  });
+
+  const codexSkill = await readFile(
+    path.join(cwd, '.agents', 'skills', 'loop-start', 'SKILL.md'),
+    'utf8'
+  );
+  const claudeHook = await readFile(
+    path.join(cwd, '.claude', 'hooks', 'agent-loop-stop.sh'),
+    'utf8'
+  );
+  const codexHookMode = await stat(path.join(cwd, '.codex', 'hooks', 'agent-loop-stop.sh'));
+
+  assert.match(codexSkill, /node '\/opt\/agent-loop-kit\/bin\/agent-loop.js' start/);
+  assert.match(claudeHook, /node '\/opt\/agent-loop-kit\/bin\/agent-loop.js' hook stop --host claude/);
+  assert.equal(codexHookMode.mode & 0o111, 0o111);
 });
 
 function capture() {

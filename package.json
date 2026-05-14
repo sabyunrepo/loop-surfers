@@ -16,7 +16,8 @@
     "docs/",
     "examples/",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "setup"
   ],
   "keywords": [
     "codex",

@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 set -euo pipefail
-agent-loop hook stop --host claude
+{{AGENT_LOOP_COMMAND}} hook stop --host claude

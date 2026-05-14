@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 set -euo pipefail
-agent-loop hook stop --host codex
+{{AGENT_LOOP_COMMAND}} hook stop --host codex

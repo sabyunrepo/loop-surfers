@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+host="all"
+target="$(pwd)"
+force=""
+
+usage() {
+  cat <<'EOF'
+Usage: ./setup [--host claude|codex|all] [--target /path/to/project] [--force]
+
+Installs Agent Loop Kit templates into a Codex or Claude Code project without
+requiring npm link or a global package install.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --host)
+      host="${2:-}"
+      shift 2
+      ;;
+    --host=*)
+      host="${1#--host=}"
+      shift
+      ;;
+    --target)
+      target="${2:-}"
+      shift 2
+      ;;
+    --target=*)
+      target="${1#--target=}"
+      shift
+      ;;
+    --force)
+      force="--force"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ "$host" != "claude" && "$host" != "codex" && "$host" != "all" ]]; then
+  echo "--host must be claude, codex, or all" >&2
+  exit 2
+fi
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+bin_path="$script_dir/bin/agent-loop.js"
+
+node_major="$(node -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null || echo 0)"
+if [[ "$node_major" -lt 20 ]]; then
+  echo "Agent Loop Kit requires Node.js 20 or newer." >&2
+  exit 1
+fi
+
+node "$bin_path" install \
+  --host "$host" \
+  --target "$target" \
+  $force
