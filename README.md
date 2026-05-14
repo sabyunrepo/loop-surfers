@@ -132,6 +132,17 @@ agent-loop defer \
 agent-loop status
 ```
 
+보류 작업과 후속조치만 확인:
+
+```bash
+agent-loop deferred
+agent-loop status --deferred
+```
+
+출력에는 보류된 작업마다 `Why blocked`, `Evidence`, `Retry after`,
+`Next action`이 표시됩니다. 사용자는 왜 실패했는지, 본인이 처리해야 하는지,
+나중에 자동 재시도 가능한지 바로 확인할 수 있습니다.
+
 사용자가 루프 중단:
 
 ```bash
@@ -285,6 +296,17 @@ Check status:
 agent-loop status
 ```
 
+Inspect only deferred work and follow-up actions:
+
+```bash
+agent-loop deferred
+agent-loop status --deferred
+```
+
+The report shows `Why blocked`, `Evidence`, `Retry after`, and `Next action` for
+each deferred task, so the user can see what failed, whether user action is
+required, and when retryable work can resume.
+
 Stop the loop:
 
 ```bash
@@ -423,6 +445,16 @@ agent-loop defer \
 agent-loop status
 ```
 
+只查看阻塞任务和后续处理：
+
+```bash
+agent-loop deferred
+agent-loop status --deferred
+```
+
+报告会显示每个保留任务的 `Why blocked`、`Evidence`、`Retry after` 和
+`Next action`，方便用户判断失败原因、是否需要人工处理，以及何时可以重试。
+
 停止循环：
 
 ```bash
@@ -537,6 +569,17 @@ agent-loop defer \
 /loop-status
 agent-loop status
 ```
+
+保留中の作業と次の対応だけを確認：
+
+```bash
+agent-loop deferred
+agent-loop status --deferred
+```
+
+レポートには各タスクの `Why blocked`、`Evidence`、`Retry after`、
+`Next action` が表示されます。ユーザーは失敗理由、人間の対応が必要かどうか、
+いつ再試行できるかを確認できます。
 
 停止：
 

@@ -170,27 +170,223 @@ export function appendEvent(state, type, data = {}, { now = new Date() } = {}) {
   state.events = state.events.slice(-100);
 }
 
-export function summarizeState(state) {
+export function summarizeState(state, {
+  statePath = null,
+  deferredOnly = false,
+  now = new Date()
+} = {}) {
   if (!state) {
     return 'No loop state found.';
   }
 
+  if (deferredOnly) {
+    return formatFollowUpReport(state, { statePath, now });
+  }
+
   const lines = [
-    `active: ${state.active}`,
-    `objective: ${state.objective || '(none)'}`,
-    `continuations: ${state.counters.continuations}/${state.budgets.maxContinuations}`,
-    `no_progress_repeats: ${state.counters.noProgressRepeats}/${state.budgets.maxNoProgressRepeats}`,
-    `ready: ${state.queues.ready.length}`,
-    `deferred: ${state.queues.deferred.length}`,
-    `done: ${state.queues.done.length}`,
-    `last_progress_at: ${state.evidence.lastProgressAt ?? '(none)'}`
+    'Loop Surfers Status',
+    '===================',
+    `State: ${state.active ? 'active' : 'inactive'}`,
+    `Objective: ${state.objective || '(none)'}`,
+    statePath ? `State file: ${statePath}` : null,
+    '',
+    'Budget',
+    '------',
+    `Continuations: ${state.counters.continuations}/${state.budgets.maxContinuations}`,
+    `No-progress repeats: ${state.counters.noProgressRepeats}/${state.budgets.maxNoProgressRepeats}`,
+    `Wall-clock: ${formatElapsedBudget(state, now)}`,
+    '',
+    'Queues',
+    '------',
+    `Ready to retry: ${state.queues.ready.length}`,
+    `Deferred: ${state.queues.deferred.length}`,
+    `Done: ${state.queues.done.length}`,
+    `Last progress: ${state.evidence.lastProgressAt ?? '(none)'}`
   ];
 
   if (state.terminal) {
-    lines.push(`terminal: ${state.terminal.type} - ${state.terminal.reason}`);
+    lines.push('', 'Terminal', '--------', `${state.terminal.type}: ${state.terminal.reason}`);
+  }
+
+  lines.push('', formatFollowUpReport(state, { statePath: null, now }));
+
+  const progress = formatRecentProgress(state);
+  if (progress) {
+    lines.push('', progress);
+  }
+
+  return lines.filter((line) => line !== null).join('\n');
+}
+
+function formatFollowUpReport(state, { statePath = null, now = new Date() } = {}) {
+  const lines = [
+    'Follow-up Needed',
+    '----------------'
+  ];
+
+  if (statePath) {
+    lines.push(`State file: ${statePath}`, '');
+  }
+
+  const ready = state.queues.ready ?? [];
+  const deferred = state.queues.deferred ?? [];
+
+  if (ready.length === 0 && deferred.length === 0) {
+    lines.push('No ready or deferred work is currently recorded.');
+    return lines.join('\n');
+  }
+
+  if (ready.length > 0) {
+    lines.push('Ready to retry now:');
+    for (const [index, task] of ready.entries()) {
+      lines.push(...formatReadyTask(task, index));
+    }
+  }
+
+  if (deferred.length > 0) {
+    if (ready.length > 0) {
+      lines.push('');
+    }
+    lines.push('Deferred work:');
+    for (const [index, task] of deferred.entries()) {
+      lines.push(...formatDeferredTask(task, index, now));
+    }
   }
 
   return lines.join('\n');
+}
+
+function formatReadyTask(task, index) {
+  const blocker = task.previousBlocker ?? {};
+  return [
+    `${index + 1}. ${task.title}`,
+    `   Status: ready`,
+    `   Why it was blocked: ${formatBlockerLabel(blocker)}`,
+    `   Next action: Retry this task now. If it still fails, defer it again with fresh evidence.`,
+    task.recoveredAt ? `   Recovered at: ${task.recoveredAt}` : null
+  ].filter(Boolean);
+}
+
+function formatDeferredTask(task, index, now) {
+  const blocker = task.blocker ?? {};
+  return [
+    `${index + 1}. ${task.title}`,
+    `   Status: ${formatDeferredStatus(task, now)}`,
+    `   Why blocked: ${formatBlockerLabel(blocker)}`,
+    `   Evidence: ${formatEvidence(blocker.evidence)}`,
+    task.blockedCapability ? `   Blocked capability: ${task.blockedCapability}` : null,
+    blocker.retryAt ? `   Retry after: ${blocker.retryAt} (${formatRetryWindow(blocker.retryAt, now)})` : null,
+    `   Next action: ${formatNextAction(task, now)}`
+  ].filter(Boolean);
+}
+
+function formatDeferredStatus(task, now) {
+  if (task.resumePolicy?.requiresUserAction) {
+    return `${task.status} - needs user action`;
+  }
+
+  const retryAt = task.blocker?.retryAt;
+  if (retryAt) {
+    const retryAtMs = Date.parse(retryAt);
+    if (Number.isFinite(retryAtMs) && retryAtMs <= now.getTime()) {
+      return `${task.status} - retry window is open`;
+    }
+  }
+
+  if (task.resumePolicy?.safeToProbe) {
+    return `${task.status} - safe to probe carefully`;
+  }
+
+  return task.status;
+}
+
+function formatBlockerLabel(blocker = {}) {
+  const type = blocker.type ?? 'unknown';
+  const provider = blocker.provider ?? 'unknown provider';
+  const scope = blocker.scope ?? 'unknown scope';
+  return `${type} from ${provider} (${scope})`;
+}
+
+function formatEvidence(evidence) {
+  if (!evidence || !String(evidence).trim()) {
+    return '(none recorded)';
+  }
+  return truncate(String(evidence).replace(/\s+/g, ' ').trim(), 220);
+}
+
+function formatNextAction(task, now) {
+  if (task.resumePolicy?.requiresUserAction) {
+    return 'A user or maintainer must resolve the blocker, then rerun or manually retry the task.';
+  }
+
+  const retryAt = task.blocker?.retryAt;
+  if (retryAt) {
+    const retryAtMs = Date.parse(retryAt);
+    if (Number.isFinite(retryAtMs) && retryAtMs > now.getTime()) {
+      return 'Wait until the retry time, then let the loop recover it into the ready queue.';
+    }
+    return 'Retry now. If the blocker repeats, defer it again with updated evidence and retry metadata.';
+  }
+
+  if (task.resumePolicy?.safeToProbe) {
+    return 'Probe carefully when a safe opportunity appears, and record progress or fresh blocker evidence.';
+  }
+
+  return 'Review the evidence and decide whether this task is safe to retry.';
+}
+
+function formatRetryWindow(retryAt, now) {
+  const retryAtMs = Date.parse(retryAt);
+  if (!Number.isFinite(retryAtMs)) {
+    return 'invalid retry time';
+  }
+  const deltaMs = retryAtMs - now.getTime();
+  if (deltaMs <= 0) {
+    return 'ready now';
+  }
+  return `in ${formatDuration(deltaMs)}`;
+}
+
+function formatElapsedBudget(state, now) {
+  const createdAt = Date.parse(state.createdAt);
+  if (!Number.isFinite(createdAt)) {
+    return `unknown/${state.budgets.maxWallMinutes}m`;
+  }
+  return `${formatDuration(now.getTime() - createdAt)}/${state.budgets.maxWallMinutes}m`;
+}
+
+function formatRecentProgress(state) {
+  const items = state.evidence.items.slice(-3);
+  if (items.length === 0) {
+    return '';
+  }
+
+  return [
+    'Recent Progress',
+    '---------------',
+    ...items.map((item, index) => `${index + 1}. ${item.summary} (${item.at})`)
+  ].join('\n');
+}
+
+function formatDuration(ms) {
+  const totalSeconds = Math.max(0, Math.round(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  }
+  return `${seconds}s`;
+}
+
+function truncate(value, maxLength) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return `${value.slice(0, maxLength - 3)}...`;
 }
 
 function numberOrDefault(value, fallback) {

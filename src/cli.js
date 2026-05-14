@@ -27,6 +27,8 @@ export async function runCli(args, io) {
       return stopCommand(rest, io);
     case 'status':
       return statusCommand(rest, io);
+    case 'deferred':
+      return deferredCommand(rest, io);
     case 'progress':
       return progressCommand(rest, io);
     case 'defer':
@@ -93,7 +95,27 @@ async function statusCommand(args, io) {
     io.stdout.write(`${JSON.stringify(state, null, 2)}\n`);
     return;
   }
-  io.stdout.write(`${summarizeState(state)}\n`);
+  io.stdout.write(`${summarizeState(state, {
+    statePath,
+    deferredOnly: Boolean(options.deferred || options.followUp || options.followup)
+  })}\n`);
+}
+
+async function deferredCommand(args, io) {
+  const options = parseOptions(args);
+  const statePath = resolveStatePath(options, io);
+  const state = await loadState(statePath);
+  if (options.json) {
+    io.stdout.write(`${JSON.stringify({
+      ready: state?.queues?.ready ?? [],
+      deferred: state?.queues?.deferred ?? []
+    }, null, 2)}\n`);
+    return;
+  }
+  io.stdout.write(`${summarizeState(state, {
+    statePath,
+    deferredOnly: true
+  })}\n`);
 }
 
 async function progressCommand(args, io) {
@@ -342,7 +364,8 @@ function helpText() {
 Usage:
   agent-loop start [options] "<objective>"
   agent-loop stop [--reason "<reason>"]
-  agent-loop status [--json]
+  agent-loop status [--json] [--deferred]
+  agent-loop deferred [--json]
   agent-loop progress "<evidence>"
   agent-loop defer --task "<task>" [--type rate_limit] [--retry-after-seconds 60]
   agent-loop complete --reason "<summary>"
